@@ -1,9 +1,4 @@
-WITH DumbTable AS (
-  SELECT
-    'THIS' AS ThatField
-  FROM DUAL
-),
-PossibleFamilies AS (SELECT
+SELECT
   StudentNumbers,
   StudentCount,
   ActiveStudentCount,
@@ -12,6 +7,7 @@ PossibleFamilies AS (SELECT
   FamilyIdents,
   FamilyIdentCount,
   FamilyIdentCountDistinct,
+  StudentAddrs, StudentAddrCount, StudentAddrCountDistinct,
   YoungestDob,
   FamilyIdentStatus,
   CASE 
@@ -32,6 +28,9 @@ FROM (SELECT
   LISTAGG(s.Family_Ident, ',') WITHIN GROUP (ORDER BY s.Family_Ident) FamilyIdents,
   COUNT(s.Family_Ident) AS FamilyIdentCount,
   COUNT(DISTINCT s.Family_Ident) AS FamilyIdentCountDistinct,
+  LISTAGG(s.Street, CHR(59)) WITHIN GROUP (ORDER BY s.Street) AS StudentAddrs,
+  COUNT(s.Street) AS StudentAddrCount,
+  COUNT(DISTINCT TRIM(SUBSTR(REPLACE(s.Street, ' ', ''), 1, 9))) AS StudentAddrCountDistinct,
   MIN(TO_CHAR(s.DOB, 'YYYY-MM-DD')) YoungestDob,
   CASE
     WHEN COUNT(DISTINCT s.Family_Ident) = 0 THEN 0
@@ -124,13 +123,5 @@ FROM (SELECT
   ORDER BY LISTAGG(s.Family_Ident, ',') WITHIN GROUP (ORDER BY s.Family_Ident) NULLS FIRST,  
                       MIN(s.DOB)
 )
-)
-SELECT 
-  REGEXP_SUBSTR(pofams.StudentNumbers, CHR(91) || '^,' || CHR(93) || '+', 1, column_value) AS Student_Number,
-  pofams.CalcdNewFamilyIdent AS Proposed_Family_Ident
 
-FROM PossibleFamilies pofams,
-     TABLE(CAST(MULTISET(SELECT LEVEL FROM DUAL
-                         CONNECT BY LEVEL <= REGEXP_COUNT(pofams.StudentNumbers, ',') + 1
-                      ) as sys.odcinumberlist))
-  
+
