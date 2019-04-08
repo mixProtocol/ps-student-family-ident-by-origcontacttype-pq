@@ -1,102 +1,101 @@
-WITH SiblingGroups AS (SELECT
-  StudentSiblings,
-  StudentSiblingCount,
-  ROWNUM AS RowIndex
+WITH SiblingGroups AS
+  (SELECT
+      StudentSiblings,
+      StudentSiblingCount,
+      ROWNUM AS RowIndex
 
-FROM (SELECT DISTINCT *
+    FROM (SELECT DISTINCT *
 
-FROM (SELECT 
-  LISTAGG(StudentSibling, ',') WITHIN GROUP (ORDER BY StudentSibling) AS StudentSiblings,
-  COUNT(StudentSibling) AS StudentSiblingCount
+      FROM (SELECT
+          LISTAGG(StudentSibling, ',') WITHIN GROUP (ORDER BY StudentSibling) AS StudentSiblings,
+          COUNT(StudentSibling) AS StudentSiblingCount
 
-FROM (SELECT DISTINCT
-  StudentSelf,
-  StudentSibling
+        FROM (SELECT DISTINCT
+            StudentSelf,
+            StudentSibling
 
-FROM (SELECT DISTINCT
-  s1.Student_Number AS StudentSelf,
-  s1.Student_Number AS Sibling1_SN,
-  s2.Student_Number AS Sibling2_SN,
-  s3.Student_Number AS Sibling3_SN
+          FROM (SELECT DISTINCT
+              s1.Student_Number AS StudentSelf,
+              s1.Student_Number AS Sibling1_SN,
+              s2.Student_Number AS Sibling2_SN,
+              s3.Student_Number AS Sibling3_SN
 
-FROM Students s1
+            FROM Students s1
 
-JOIN StudentContactAssoc scaS1P1
-    ON s1.Dcid = scaS1P1.StudentDcid
+            JOIN StudentContactAssoc scaS1P1
+              ON s1.Dcid = scaS1P1.StudentDcid
 
-JOIN OriginalContactMap ocmS1P1
-      ON scaS1P1.StudentContactAssocid = ocmS1P1.StudentContactAssocId
-      AND LOWER(ocmS1P1.OriginalContactType) IN ('mother', 'father', 'guardian')
+            JOIN OriginalContactMap ocmS1P1
+              ON scaS1P1.StudentContactAssocid = ocmS1P1.StudentContactAssocId
+                AND LOWER(ocmS1P1.OriginalContactType) IN ('mother', 'father', 'guardian')
 
-JOIN Person p1
-    ON scaS1P1.PersonId = p1.Id
+            JOIN Person p1
+              ON scaS1P1.PersonId = p1.Id
 
-JOIN StudentContactAssoc scaP1S2
-    ON p1.Id = scaP1S2.PersonId
+            JOIN StudentContactAssoc scaP1S2
+              ON p1.Id = scaP1S2.PersonId
 
-JOIN OriginalContactMap ocmP1S2
-      ON scaP1S2.StudentContactAssocid = ocmP1S2.StudentContactAssocId
-      AND LOWER(ocmP1S2.OriginalContactType) IN ('mother', 'father', 'guardian')
+            JOIN OriginalContactMap ocmP1S2
+              ON scaP1S2.StudentContactAssocid = ocmP1S2.StudentContactAssocId
+              AND LOWER(ocmP1S2.OriginalContactType) IN ('mother', 'father', 'guardian')
 
-JOIN Students s2 
-    ON scaP1S2.StudentDcid = s2.Dcid
+            JOIN Students s2
+              ON scaP1S2.StudentDcid = s2.Dcid
 
-JOIN StudentContactAssoc scaS2P2
-    ON s2.Dcid = scaS2P2.StudentDcid
+            JOIN StudentContactAssoc scaS2P2
+              ON s2.Dcid = scaS2P2.StudentDcid
 
-JOIN OriginalContactMap ocmS2P2
-      ON scaS2P2.StudentContactAssocid = ocmS2P2.StudentContactAssocId
-      AND LOWER(ocmS2P2.OriginalContactType) IN ('mother', 'father', 'guardian')
+            JOIN OriginalContactMap ocmS2P2
+              ON scaS2P2.StudentContactAssocid = ocmS2P2.StudentContactAssocId
+                AND LOWER(ocmS2P2.OriginalContactType) IN ('mother', 'father', 'guardian')
 
-JOIN Person p2
-    ON scaS2P2.PersonId = p2.Id
+            JOIN Person p2
+              ON scaS2P2.PersonId = p2.Id
 
-JOIN StudentContactAssoc scaP2S3
-    ON p2.Id = scaP2S3.PersonId
+            JOIN StudentContactAssoc scaP2S3
+              ON p2.Id = scaP2S3.PersonId
 
-JOIN OriginalContactMap ocmP2S3
-      ON scaP2S3.StudentContactAssocid = ocmP2S3.StudentContactAssocId
-      AND LOWER(ocmP2S3.OriginalContactType) IN ('mother', 'father', 'guardian')
+            JOIN OriginalContactMap ocmP2S3
+              ON scaP2S3.StudentContactAssocid = ocmP2S3.StudentContactAssocId
+                AND LOWER(ocmP2S3.OriginalContactType) IN ('mother', 'father', 'guardian')
 
-JOIN Students s3 
-    ON scaP2S3.StudentDcid = s3.Dcid
-)
+            JOIN Students s3
+              ON scaP2S3.StudentDcid = s3.Dcid )
 
-  UNPIVOT
-    ( StudentSibling FOR (SOURCE_S) IN
-      ( Sibling1_SN AS 'S1',
-        Sibling2_SN AS 'S2',
-        Sibling3_SN AS 'S3'
-      )
-    )
+          UNPIVOT ( StudentSibling FOR (SOURCE_S) IN
+            ( Sibling1_SN AS 'S1',
+              Sibling2_SN AS 'S2',
+              Sibling3_SN AS 'S3'
+            )
+          )
 
-GROUP BY StudentSelf, StudentSibling
-ORDER BY StudentSelf, StudentSibling
-)
-GROUP BY StudentSelf
-ORDER BY StudentSelf
-)
-ORDER BY StudentSiblings
-)
-) 
-SELECT 
+          GROUP BY StudentSelf, StudentSibling
+          ORDER BY StudentSelf, StudentSibling )
+
+        GROUP BY StudentSelf
+        ORDER BY StudentSelf )
+
+      ORDER BY StudentSiblings )
+  )
+
+SELECT
   TempFamGrpNumber, TempFamGrpMemberCount,
   StudentSibling,
   s.Family_Ident
 
-FROM (SELECT 
-    RowIndex AS TempFamGrpNumber,
-    StudentSiblingCount AS TempFamGrpMemberCount,
-    REGEXP_SUBSTR(StudentSiblings, chr(91)||'^,'||chr(93)||'+', 1, column_value) StudentSibling
-FROM SiblingGroups,
-            TABLE(CAST(MULTISET(SELECT level FROM Dual
-                         CONNECT BY level <= REGEXP_COUNT(StudentSiblings, ',') + 1
+FROM (SELECT
+  RowIndex AS TempFamGrpNumber,
+  StudentSiblingCount AS TempFamGrpMemberCount,
+  REGEXP_SUBSTR(StudentSiblings, chr(91)||'^,'||chr(93)||'+', 1, column_value) StudentSibling
+  FROM SiblingGroups,
+   TABLE(CAST(MULTISET(SELECT level FROM Dual
+                         CONNECT BY level <= REGEXP_COUNT (StudentSiblings, ',') + 1
                       ) as sys.odcinumberlist))
 )
+
 JOIN Students s 
   ON StudentSibling = s.Student_Number
 
 ORDER BY s.Family_Ident NULLS FIRST, StudentSibling, TempFamGrpNumber
 
 
- 
