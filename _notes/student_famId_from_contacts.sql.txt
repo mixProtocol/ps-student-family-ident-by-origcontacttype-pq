@@ -8,6 +8,10 @@ WITH SiblingGroups AS
       StreetAddrsInFamily,
       StreetAddrsInFamilyCnt,
       StreetAddrsFamDistinctCnt,
+      MinGradeLvl,
+      MaxGradeLvl,
+      MinEnrollStat,
+      MaxEnrollStat,
       ROWNUM AS RowIndex
 
     FROM (SELECT DISTINCT *
@@ -22,13 +26,20 @@ WITH SiblingGroups AS
           
           LISTAGG(StudentSibling_Street, CHR(59)) WITHIN GROUP (ORDER BY StudentSibling_Street) AS StreetAddrsInFamily,
           COUNT(StudentSibling_Street) AS StreetAddrsInFamilyCnt,
-          COUNT(DISTINCT StudentSibling_Street) AS StreetAddrsFamDistinctCnt
+          COUNT(DISTINCT StudentSibling_Street) AS StreetAddrsFamDistinctCnt,
+
+          MIN(SiblingGradeLvl) AS MinGradeLvl,
+          MAX(SiblingGradeLvl) AS MaxGradeLvl,
+          MIN(SiblingEnrollStat) AS MinEnrollStat,
+          MAX(SiblingEnrollStat) AS MaxEnrollStat
 
         FROM (SELECT DISTINCT
             StudentSelf,
             StudentSibling,
+            ss.Grade_Level AS SiblingGradeLvl,
+            ss.Enroll_Status AS SiblingEnrollStat,
             ss.Family_Ident AS StudentSibling_FamId,
-            TO_CHAR(ss.Street) AS StudentSibling_Street
+            ss.Street AS StudentSibling_Street
 
           FROM (SELECT DISTINCT
               s1.Student_Number AS StudentSelf,
@@ -88,8 +99,9 @@ WITH SiblingGroups AS
           JOIN Students ss
             ON StudentSibling = ss.Student_Number
 
-          GROUP BY StudentSelf, StudentSibling, 
-                   ss.Family_Ident, TO_CHAR(ss.Street)
+          GROUP BY StudentSelf, StudentSibling,
+                   ss.Grade_Level, ss.Enroll_Status,
+                   ss.Family_Ident, ss.Street
 
           ORDER BY StudentSelf, StudentSibling )
 
@@ -100,7 +112,9 @@ WITH SiblingGroups AS
   )
 
 SELECT
-  TempFamGrpNumber, TempFamGrpMemberCount,
+  TempFamGrpNumber, 
+  StudentsInFamily,
+  TempFamGrpMemberCount,
   FamilyIdsInFamily,
   FamilyIdsInFamilyCount, 
   FamilyIdsInFamilyDistinctCount,
@@ -108,10 +122,17 @@ SELECT
   StreetAddrsInFamilyCnt,
   StreetAddrsFamDistinctCnt,
   StudentSibling,
-  s.Family_Ident
+  MinGradeLvl,
+  MaxGradeLvl,
+  MinEnrollStat,
+  MaxEnrollStat,
+  s.Family_Ident,
+  s.Grade_Level,
+  s.Enroll_Status
   
 FROM (SELECT
   RowIndex AS TempFamGrpNumber,
+  StudentsInFamily,
   StudentsInFamilyCount AS TempFamGrpMemberCount,
   FamilyIdsInFamily,
   FamilyIdsInFamilyCount,
@@ -119,11 +140,15 @@ FROM (SELECT
   StreetAddrsInFamily,
   StreetAddrsInFamilyCnt,
   StreetAddrsFamDistinctCnt,
+  MinGradeLvl,
+  MaxGradeLvl,
+  MinEnrollStat,
+  MaxEnrollStat,
   REGEXP_SUBSTR(StudentsInFamily, chr(91)||'^,'||chr(93)||'+', 1, column_value) StudentSibling
   FROM SiblingGroups,
-   TABLE(CAST(MULTISET(SELECT level FROM Dual
-                         CONNECT BY level <= REGEXP_COUNT (StudentsInFamily, ',') + 1
-                      ) as sys.odcinumberlist))
+       TABLE(CAST(MULTISET(SELECT level FROM Dual
+                           CONNECT BY level <= REGEXP_COUNT (StudentsInFamily, ',') + 1
+                           ) as sys.odcinumberlist))
 )
 
 JOIN Students s 
