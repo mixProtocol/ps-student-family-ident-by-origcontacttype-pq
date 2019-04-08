@@ -1,127 +1,102 @@
-SELECT
-  StudentNumbers,
-  StudentCount,
-  ActiveStudentCount,
-  GradeLvl_Min, 
-  GradeLvl_Max,
-  FamilyIdents,
-  FamilyIdentCount,
-  FamilyIdentCountDistinct,
-  StudentAddrs, StudentAddrCount, StudentAddrCountDistinct,
-  YoungestDob,
-  FamilyIdentStatus,
-  CASE 
-    WHEN FamilyIdentStatus = 0 THEN TO_CHAR(ROWNUM + MaxFamIdentVal)
-    WHEN FamilyIdentStatus = 1 THEN TO_CHAR('SOME_MISSING')
-    WHEN FamilyIdentStatus = 2 THEN TO_CHAR('ALL_SAME')
-    WHEN FamilyIdentStatus = 3 THEN TO_CHAR('MULT_F_IDs')  
-  END AS CalcdNewFamilyIdent
+WITH SiblingGroups AS (SELECT
+  StudentSiblings,
+  StudentSiblingCount,
+  ROWNUM AS RowIndex
+
+FROM (SELECT DISTINCT *
 
 FROM (SELECT 
-  RelatedOrigContacts,
-  RelatedOrigContactCount,
-  LISTAGG(s.Student_Number, ',') WITHIN GROUP (ORDER BY s.Student_Number) StudentNumbers,
-  COUNT(StudentDcid) AS StudentCount,
-  COUNT(CASE WHEN s.Enroll_Status < 1 THEN 1 END) AS ActiveStudentCount,
-  MIN(s.Grade_Level) AS GradeLvl_Min,
-  MAX(s.Grade_Level) AS GradeLvl_Max,
-  LISTAGG(s.Family_Ident, ',') WITHIN GROUP (ORDER BY s.Family_Ident) FamilyIdents,
-  COUNT(s.Family_Ident) AS FamilyIdentCount,
-  COUNT(DISTINCT s.Family_Ident) AS FamilyIdentCountDistinct,
-  LISTAGG(s.Street, CHR(59)) WITHIN GROUP (ORDER BY s.Street) AS StudentAddrs,
-  COUNT(s.Street) AS StudentAddrCount,
-  COUNT(DISTINCT TRIM(SUBSTR(REPLACE(s.Street, ' ', ''), 1, 9))) AS StudentAddrCountDistinct,
-  MIN(TO_CHAR(s.DOB, 'YYYY-MM-DD')) YoungestDob,
-  CASE
-    WHEN COUNT(DISTINCT s.Family_Ident) = 0 THEN 0
-    WHEN (COUNT(DISTINCT s.Family_Ident) = 1 
-                 AND SUM(DECODE(s.Family_Ident,NULL,1,0)) > 0) THEN 1
-    WHEN (COUNT(DISTINCT s.Family_Ident) = 1 
-                 AND SUM(DECODE(s.Family_Ident,NULL,1,0)) = 0) THEN 2
-    WHEN COUNT(DISTINCT s.Family_Ident) > 1 THEN 3
-  END AS FamilyIdentStatus,
-  MAX(TO_NUMBER(StudentFamilyIdents.MaxVal)) MaxFamIdentVal
-
-FROM (SELECT 
-  StudentDcid,
-  LISTAGG(RelatedOriginalContact, ',') WITHIN GROUP (ORDER BY RelatedOriginalContact) RelatedOrigContacts,
-  COUNT(RelatedOriginalContact) AS RelatedOrigContactCount
+  LISTAGG(StudentSibling, ',') WITHIN GROUP (ORDER BY StudentSibling) AS StudentSiblings,
+  COUNT(StudentSibling) AS StudentSiblingCount
 
 FROM (SELECT DISTINCT
-  StudentDcid,
-  RelatedOriginalContact
+  StudentSelf,
+  StudentSibling
 
-FROM (SELECT
-  s1.Dcid AS s1Dcid,
-  s2.Dcid AS s2Dcid,
-  p1.Id AS Person1Id, 
-  p2.Id AS Person2Id, 
-  p3.Id AS Person3Id
+FROM (SELECT DISTINCT
+  s1.Student_Number AS StudentSelf,
+  s1.Student_Number AS Sibling1_SN,
+  s2.Student_Number AS Sibling2_SN,
+  s3.Student_Number AS Sibling3_SN
 
-  FROM Person p1
+FROM Students s1
 
-  JOIN StudentContactAssoc sca1
-    ON p1.Id = sca1.PersonId
+JOIN StudentContactAssoc scaS1P1
+    ON s1.Dcid = scaS1P1.StudentDcid
 
-  JOIN OriginalContactMap ocm1
-    ON sca1.StudentContactAssocid = ocm1.StudentContactAssocId
-    AND LOWER(ocm1.OriginalContactType) IN ('mother', 'father', 'guardian')
+JOIN OriginalContactMap ocmS1P1
+      ON scaS1P1.StudentContactAssocid = ocmS1P1.StudentContactAssocId
+      AND LOWER(ocmS1P1.OriginalContactType) IN ('mother', 'father', 'guardian')
 
-  JOIN Students s1 
-    ON sca1.StudentDcid = s1.Dcid
+JOIN Person p1
+    ON scaS1P1.PersonId = p1.Id
 
-  JOIN StudentContactAssoc sca2
-    ON s1.Dcid = sca2.StudentDcid
+JOIN StudentContactAssoc scaP1S2
+    ON p1.Id = scaP1S2.PersonId
 
-  JOIN Person p2
-    ON sca2.PersonId = p2.Id
+JOIN OriginalContactMap ocmP1S2
+      ON scaP1S2.StudentContactAssocid = ocmP1S2.StudentContactAssocId
+      AND LOWER(ocmP1S2.OriginalContactType) IN ('mother', 'father', 'guardian')
 
-  JOIN OriginalContactMap ocm2
-    ON sca2.StudentContactAssocid = ocm2.StudentContactAssocId
-    AND LOWER(ocm2.OriginalContactType) IN ('mother', 'father', 'guardian')
+JOIN Students s2 
+    ON scaP1S2.StudentDcid = s2.Dcid
 
-  JOIN Students s2 
-    ON sca2.StudentDcid = s2.Dcid
+JOIN StudentContactAssoc scaS2P2
+    ON s2.Dcid = scaS2P2.StudentDcid
 
-  JOIN StudentContactAssoc sca3
-    ON s2.Dcid = sca3.StudentDcid
+JOIN OriginalContactMap ocmS2P2
+      ON scaS2P2.StudentContactAssocid = ocmS2P2.StudentContactAssocId
+      AND LOWER(ocmS2P2.OriginalContactType) IN ('mother', 'father', 'guardian')
 
-  JOIN  Person p3
-    ON sca3.PersonId = p3.Id
+JOIN Person p2
+    ON scaS2P2.PersonId = p2.Id
 
-  JOIN  OriginalContactMap ocm3
-    ON sca3.StudentContactAssocid = ocm3.StudentContactAssocId
-    AND LOWER(ocm3.OriginalContactType) IN ('mother', 'father', 'guardian')
-   ) 
+JOIN StudentContactAssoc scaP2S3
+    ON p2.Id = scaP2S3.PersonId
 
-  UNPIVOT
-    ( StudentDcid FOR (SOURCE_S) IN
-      ( s1Dcid AS 'S1',
-        s2Dcid AS 'S2'
-      )
-    )
+JOIN OriginalContactMap ocmP2S3
+      ON scaP2S3.StudentContactAssocid = ocmP2S3.StudentContactAssocId
+      AND LOWER(ocmP2S3.OriginalContactType) IN ('mother', 'father', 'guardian')
 
-  UNPIVOT
-    ( RelatedOriginalContact FOR (SOURCE_P) IN
-      ( Person1Id AS 'P1',
-        Person2Id AS 'P2',
-        Person3Id AS 'P3'
-      )
-    )
-  )
-  GROUP BY StudentDcid
-  ORDER BY StudentDcid
-  )
-
-  CROSS JOIN (SELECT MAX(TO_NUMBER(stdnt.Family_Ident)) AS MaxVal FROM Students stdnt) StudentFamilyIdents
-
-  JOIN Students s 
-    ON StudentDcid = s.Dcid
-
-  GROUP BY RelatedOrigContacts, RelatedOrigContactCount
-
-  ORDER BY LISTAGG(s.Family_Ident, ',') WITHIN GROUP (ORDER BY s.Family_Ident) NULLS FIRST,  
-                      MIN(s.DOB)
+JOIN Students s3 
+    ON scaP2S3.StudentDcid = s3.Dcid
 )
 
+  UNPIVOT
+    ( StudentSibling FOR (SOURCE_S) IN
+      ( Sibling1_SN AS 'S1',
+        Sibling2_SN AS 'S2',
+        Sibling3_SN AS 'S3'
+      )
+    )
 
+GROUP BY StudentSelf, StudentSibling
+ORDER BY StudentSelf, StudentSibling
+)
+GROUP BY StudentSelf
+ORDER BY StudentSelf
+)
+ORDER BY StudentSiblings
+)
+) 
+SELECT 
+  TempFamGrpNumber, TempFamGrpMemberCount,
+  StudentSibling,
+  s.Family_Ident
+
+FROM (SELECT 
+    RowIndex AS TempFamGrpNumber,
+    StudentSiblingCount AS TempFamGrpMemberCount,
+    REGEXP_SUBSTR(StudentSiblings, chr(91)||'^,'||chr(93)||'+', 1, column_value) StudentSibling
+FROM SiblingGroups,
+            TABLE(CAST(MULTISET(SELECT level FROM Dual
+                         CONNECT BY level <= REGEXP_COUNT(StudentSiblings, ',') + 1
+                      ) as sys.odcinumberlist))
+)
+JOIN Students s 
+  ON StudentSibling = s.Student_Number
+
+ORDER BY s.Family_Ident NULLS FIRST, StudentSibling, TempFamGrpNumber
+
+
+ 
