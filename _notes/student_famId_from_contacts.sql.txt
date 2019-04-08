@@ -1,18 +1,25 @@
 WITH SiblingGroups AS
   (SELECT
-      StudentSiblings,
-      StudentSiblingCount,
+      StudentsInFamily,
+      StudentsInFamilyCount,
+      FamilyIdsInFamily, 
+      FamilyIdsInFamilyCount,
+      FamilyIdsInFamilyDistinctCount,
       ROWNUM AS RowIndex
 
     FROM (SELECT DISTINCT *
 
       FROM (SELECT
-          LISTAGG(StudentSibling, ',') WITHIN GROUP (ORDER BY StudentSibling) AS StudentSiblings,
-          COUNT(StudentSibling) AS StudentSiblingCount
+          LISTAGG(StudentSibling, ',') WITHIN GROUP (ORDER BY StudentSibling) AS StudentsInFamily,
+          COUNT(StudentSibling) AS StudentsInFamilyCount,
+          LISTAGG(StudentSibling_FamId, ',') WITHIN GROUP (ORDER BY StudentSibling_FamId) AS FamilyIdsInFamily,
+          COUNT(StudentSibling_FamId) AS FamilyIdsInFamilyCount,
+          COUNT(DISTINCT StudentSibling_FamId) AS FamilyIdsInFamilyDistinctCount
 
         FROM (SELECT DISTINCT
             StudentSelf,
-            StudentSibling
+            StudentSibling,
+            ss.Family_Ident AS StudentSibling_FamId
 
           FROM (SELECT DISTINCT
               s1.Student_Number AS StudentSelf,
@@ -69,33 +76,43 @@ WITH SiblingGroups AS
             )
           )
 
-          GROUP BY StudentSelf, StudentSibling
+          JOIN Students ss
+            ON StudentSibling = ss.Student_Number
+
+          GROUP BY StudentSelf, StudentSibling, ss.Family_Ident
           ORDER BY StudentSelf, StudentSibling )
 
         GROUP BY StudentSelf
         ORDER BY StudentSelf )
 
-      ORDER BY StudentSiblings )
+      ORDER BY StudentsInFamily )
   )
 
 SELECT
   TempFamGrpNumber, TempFamGrpMemberCount,
+  FamilyIdsInFamily,
+  FamilyIdsInFamilyCount, 
+  FamilyIdsInFamilyDistinctCount,
   StudentSibling,
   s.Family_Ident
-
+  
 FROM (SELECT
   RowIndex AS TempFamGrpNumber,
-  StudentSiblingCount AS TempFamGrpMemberCount,
-  REGEXP_SUBSTR(StudentSiblings, chr(91)||'^,'||chr(93)||'+', 1, column_value) StudentSibling
+  StudentsInFamilyCount AS TempFamGrpMemberCount,
+  FamilyIdsInFamily,
+  FamilyIdsInFamilyCount,
+  FamilyIdsInFamilyDistinctCount,
+  REGEXP_SUBSTR(StudentsInFamily, chr(91)||'^,'||chr(93)||'+', 1, column_value) StudentSibling
   FROM SiblingGroups,
    TABLE(CAST(MULTISET(SELECT level FROM Dual
-                         CONNECT BY level <= REGEXP_COUNT (StudentSiblings, ',') + 1
+                         CONNECT BY level <= REGEXP_COUNT (StudentsInFamily, ',') + 1
                       ) as sys.odcinumberlist))
 )
 
 JOIN Students s 
   ON StudentSibling = s.Student_Number
 
-ORDER BY s.Family_Ident NULLS FIRST, StudentSibling, TempFamGrpNumber
+ORDER BY s.Family_Ident NULLS FIRST, 
+         StudentSibling, TempFamGrpNumber
 
 
