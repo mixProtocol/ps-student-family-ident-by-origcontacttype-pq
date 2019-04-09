@@ -119,6 +119,7 @@ SELECT
   Stu_Num,
   s.Grade_Level,
   s.Enroll_Status,
+  s.DOB,
   scf.Family_Rep,
   s.Family_Ident,
   StudentsInFamily,
