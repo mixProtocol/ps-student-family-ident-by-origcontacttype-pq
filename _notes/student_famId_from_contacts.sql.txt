@@ -112,7 +112,11 @@ WITH SiblingGroups AS
   )
 
 SELECT
-  TempFamGrpNumber, 
+  Stu_Num,
+  s.Grade_Level,
+  s.Enroll_Status,
+  scf.Family_Rep,
+  s.Family_Ident,
   StudentsInFamily,
   TempFamGrpMemberCount,
   FamilyIdsInFamily,
@@ -121,15 +125,11 @@ SELECT
   StreetAddrsInFamily,
   StreetAddrsInFamilyCnt,
   StreetAddrsFamDistinctCnt,
-  StudentSibling,
   MinGradeLvl,
   MaxGradeLvl,
   MinEnrollStat,
   MaxEnrollStat,
-  s.Family_Ident,
-  s.Grade_Level,
-  s.Enroll_Status,
-  scf.Family_Rep
+  TempFamGrpNumber 
   
 FROM (SELECT
   RowIndex AS TempFamGrpNumber,
@@ -145,7 +145,7 @@ FROM (SELECT
   MaxGradeLvl,
   MinEnrollStat,
   MaxEnrollStat,
-  REGEXP_SUBSTR(StudentsInFamily, chr(91)||'^,'||chr(93)||'+', 1, column_value) StudentSibling
+  REGEXP_SUBSTR(StudentsInFamily, chr(91)||'^,'||chr(93)||'+', 1, column_value) AS Stu_Num
   FROM SiblingGroups,
        TABLE(CAST(MULTISET(SELECT level FROM Dual
                            CONNECT BY level <= REGEXP_COUNT (StudentsInFamily, ',') + 1
@@ -153,12 +153,12 @@ FROM (SELECT
 )
 
 JOIN Students s 
-  ON StudentSibling = s.Student_Number
+  ON Stu_Num = s.Student_Number
 
  JOIN StudentCoreFields scf
    ON s.Dcid = scf.StudentsDcid
 
 ORDER BY s.Family_Ident NULLS FIRST, 
-         StudentSibling, TempFamGrpNumber
+         Stu_Num, TempFamGrpNumber
 
 
