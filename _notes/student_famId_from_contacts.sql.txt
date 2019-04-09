@@ -128,7 +128,8 @@ SELECT
   MaxEnrollStat,
   s.Family_Ident,
   s.Grade_Level,
-  s.Enroll_Status
+  s.Enroll_Status,
+  scf.Family_Rep
   
 FROM (SELECT
   RowIndex AS TempFamGrpNumber,
@@ -153,6 +154,9 @@ FROM (SELECT
 
 JOIN Students s 
   ON StudentSibling = s.Student_Number
+
+ JOIN StudentCoreFields scf
+   ON s.Dcid = scf.StudentsDcid
 
 ORDER BY s.Family_Ident NULLS FIRST, 
          StudentSibling, TempFamGrpNumber
