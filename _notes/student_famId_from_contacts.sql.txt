@@ -108,7 +108,10 @@ WITH SiblingGroups AS
         GROUP BY StudentSelf
         ORDER BY StudentSelf )
 
-      ORDER BY StudentsInFamily )
+      ORDER BY FamilyIdsInFamily NULLS FIRST,
+               MaxGradeLvl DESC,
+               MinGradeLvl DESC,
+               StudentsInFamily )
   )
 
 SELECT
@@ -147,9 +150,9 @@ FROM (SELECT
   MaxEnrollStat,
   REGEXP_SUBSTR(StudentsInFamily, chr(91)||'^,'||chr(93)||'+', 1, column_value) AS Stu_Num
   FROM SiblingGroups,
-       TABLE(CAST(MULTISET(SELECT level FROM Dual
-                           CONNECT BY level <= REGEXP_COUNT (StudentsInFamily, ',') + 1
-                           ) as sys.odcinumberlist))
+       TABLE (CAST (MULTISET (SELECT level FROM Dual
+                              CONNECT BY level <= REGEXP_COUNT (StudentsInFamily, ',') + 1
+                             ) as sys.odcinumberlist ) )
 )
 
 JOIN Students s 
@@ -159,6 +162,9 @@ JOIN Students s
    ON s.Dcid = scf.StudentsDcid
 
 ORDER BY s.Family_Ident NULLS FIRST, 
-         Stu_Num, TempFamGrpNumber
+         MaxGradeLvl DESC,
+         MinGradeLvl DESC,
+         StudentsInFamily,
+         Stu_Num
 
 
