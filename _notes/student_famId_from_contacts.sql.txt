@@ -8,10 +8,9 @@ WITH SiblingGroups AS
       StreetAddrsInFamily,
       StreetAddrsInFamilyCnt,
       StreetAddrsFamDistinctCnt,
-      MinGradeLvl,
-      MaxGradeLvl,
-      MinEnrollStat,
-      MaxEnrollStat,
+      MinGradeLvl, MaxGradeLvl,
+      MinEnrollStat, MaxEnrollStat,
+      MinDOB, MaxDOB,
       ROWNUM AS RowIndex
 
     FROM (SELECT DISTINCT *
@@ -31,13 +30,16 @@ WITH SiblingGroups AS
           MIN(SiblingGradeLvl) AS MinGradeLvl,
           MAX(SiblingGradeLvl) AS MaxGradeLvl,
           MIN(SiblingEnrollStat) AS MinEnrollStat,
-          MAX(SiblingEnrollStat) AS MaxEnrollStat
+          MAX(SiblingEnrollStat) AS MaxEnrollStat,
+          MIN(SiblingDOB) AS MinDOB,
+          MAX(SiblingDOB) AS MaxDOB
 
         FROM (SELECT DISTINCT
             StudentSelf,
             StudentSibling,
             ss.Grade_Level AS SiblingGradeLvl,
             ss.Enroll_Status AS SiblingEnrollStat,
+            ss.DOB AS SiblingDOB,
             ss.Family_Ident AS StudentSibling_FamId,
             ss.Street AS StudentSibling_Street
 
@@ -99,9 +101,8 @@ WITH SiblingGroups AS
           JOIN Students ss
             ON StudentSibling = ss.Student_Number
 
-          GROUP BY StudentSelf, StudentSibling,
-                   ss.Grade_Level, ss.Enroll_Status,
-                   ss.Family_Ident, ss.Street
+          GROUP BY StudentSelf, StudentSibling, ss.Grade_Level, 
+                   ss.Enroll_Status, ss.DOB, ss.Family_Ident, ss.Street
 
           ORDER BY StudentSelf, StudentSibling )
 
@@ -128,10 +129,9 @@ SELECT
   StreetAddrsInFamily,
   StreetAddrsInFamilyCnt,
   StreetAddrsFamDistinctCnt,
-  MinGradeLvl,
-  MaxGradeLvl,
-  MinEnrollStat,
-  MaxEnrollStat,
+  MinGradeLvl, MaxGradeLvl,
+  MinEnrollStat, MaxEnrollStat,
+  MinDOB, MaxDOB,
   TempFamGrpNumber 
   
 FROM (SELECT
@@ -144,10 +144,9 @@ FROM (SELECT
   StreetAddrsInFamily,
   StreetAddrsInFamilyCnt,
   StreetAddrsFamDistinctCnt,
-  MinGradeLvl,
-  MaxGradeLvl,
-  MinEnrollStat,
-  MaxEnrollStat,
+  MinGradeLvl, MaxGradeLvl,
+  MinEnrollStat, MaxEnrollStat,
+  MinDOB, MaxDOB,
   REGEXP_SUBSTR(StudentsInFamily, chr(91)||'^,'||chr(93)||'+', 1, column_value) AS Stu_Num
   FROM SiblingGroups,
        TABLE (CAST (MULTISET (SELECT level FROM Dual
