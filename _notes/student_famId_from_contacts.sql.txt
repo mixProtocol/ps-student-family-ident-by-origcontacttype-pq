@@ -8,9 +8,12 @@ WITH SiblingGroups AS
       StreetAddrsInFamily,
       StreetAddrsInFamilyCnt,
       StreetAddrsFamDistinctCnt,
-      MinGradeLvl, MaxGradeLvl,
-      MinEnrollStat, MaxEnrollStat,
-      MinDOB, MaxDOB,
+      MinGradeLvl,
+      MaxGradeLvl,
+      MinEnrollStat, 
+      MaxEnrollStat,
+      MinDOB, 
+      MaxDOB,
       ROWNUM AS RowIndex
 
     FROM (SELECT DISTINCT *
@@ -130,30 +133,35 @@ SELECT
   StreetAddrsInFamily,
   StreetAddrsInFamilyCnt,
   StreetAddrsFamDistinctCnt,
-  MinGradeLvl, MaxGradeLvl,
-  MinEnrollStat, MaxEnrollStat,
-  MinDOB, MaxDOB,
+  MinGradeLvl, 
+  MaxGradeLvl,
+  MinEnrollStat, 
+  MaxEnrollStat,
+  MinDOB,
+  MaxDOB,
   TempFamGrpNumber 
   
 FROM (SELECT
-  RowIndex AS TempFamGrpNumber,
-  StudentsInFamily,
-  StudentsInFamilyCount AS TempFamGrpMemberCount,
-  FamilyIdsInFamily,
-  FamilyIdsInFamilyCount,
-  FamilyIdsInFamilyDistinctCount,
-  StreetAddrsInFamily,
-  StreetAddrsInFamilyCnt,
-  StreetAddrsFamDistinctCnt,
-  MinGradeLvl, MaxGradeLvl,
-  MinEnrollStat, MaxEnrollStat,
-  MinDOB, MaxDOB,
-  REGEXP_SUBSTR(StudentsInFamily, chr(91)||'^,'||chr(93)||'+', 1, column_value) AS Stu_Num
-  FROM SiblingGroups,
-       TABLE (CAST (MULTISET (SELECT level FROM Dual
-                              CONNECT BY level <= REGEXP_COUNT (StudentsInFamily, ',') + 1
-                             ) as sys.odcinumberlist ) )
-)
+    RowIndex AS TempFamGrpNumber,
+    StudentsInFamily,
+    StudentsInFamilyCount AS TempFamGrpMemberCount,
+    FamilyIdsInFamily,
+    FamilyIdsInFamilyCount,
+    FamilyIdsInFamilyDistinctCount,
+    StreetAddrsInFamily,
+    StreetAddrsInFamilyCnt,
+    StreetAddrsFamDistinctCnt,
+    MinGradeLvl,
+    MaxGradeLvl,
+    MinEnrollStat,
+    MaxEnrollStat,
+    MinDOB,
+    MaxDOB,
+    REGEXP_SUBSTR(StudentsInFamily, chr(91)||'^,'||chr(93)||'+', 1, column_value) AS Stu_Num
+    FROM SiblingGroups,
+         TABLE (CAST (MULTISET (SELECT level FROM Dual
+                                CONNECT BY level <= REGEXP_COUNT (StudentsInFamily, ',') + 1
+                               ) AS sys.odcinumberlist ) ) )
 
 JOIN Students s 
   ON Stu_Num = s.Student_Number
@@ -165,6 +173,6 @@ ORDER BY s.Family_Ident NULLS FIRST,
          MaxGradeLvl DESC,
          MinGradeLvl DESC,
          StudentsInFamily,
-         Stu_Num
+         Stu_Num DESC
 
 
