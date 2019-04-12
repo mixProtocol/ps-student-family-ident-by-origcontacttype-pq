@@ -5,15 +5,8 @@ WITH SiblingGroups AS
       FamilyIdsInFamily, 
       FamilyIdsInFamilyCount,
       FamilyIdsInFamilyDistinctCount,
-      StreetAddrsInFamily,
-      StreetAddrsInFamilyCnt,
-      StreetAddrsFamDistinctCnt,
-      MinGradeLvl,
-      MaxGradeLvl,
-      MinEnrollStat, 
-      MaxEnrollStat,
       MinDOB, 
-      MaxDOB,
+      MaxStuNum,
       ROWNUM AS RowIndex
 
     FROM (SELECT DISTINCT *
@@ -26,25 +19,14 @@ WITH SiblingGroups AS
           COUNT(StudentSibling_FamId) AS FamilyIdsInFamilyCount,
           COUNT(DISTINCT StudentSibling_FamId) AS FamilyIdsInFamilyDistinctCount,
           
-          LISTAGG(StudentSibling_Street, CHR(59)) WITHIN GROUP (ORDER BY StudentSibling_Street) AS StreetAddrsInFamily,
-          COUNT(StudentSibling_Street) AS StreetAddrsInFamilyCnt,
-          COUNT(DISTINCT StudentSibling_Street) AS StreetAddrsFamDistinctCnt,
-
-          MIN(SiblingGradeLvl) AS MinGradeLvl,
-          MAX(SiblingGradeLvl) AS MaxGradeLvl,
-          MIN(SiblingEnrollStat) AS MinEnrollStat,
-          MAX(SiblingEnrollStat) AS MaxEnrollStat,
           MIN(SiblingDOB) AS MinDOB,
-          MAX(SiblingDOB) AS MaxDOB
+          MAX(StudentSibling) AS MaxStuNum
 
         FROM (SELECT DISTINCT
             StudentSelf,
             StudentSibling,
-            ss.Grade_Level AS SiblingGradeLvl,
-            ss.Enroll_Status AS SiblingEnrollStat,
             ss.DOB AS SiblingDOB,
-            ss.Family_Ident AS StudentSibling_FamId,
-            ss.Street AS StudentSibling_Street
+            ss.Family_Ident AS StudentSibling_FamId
 
           FROM (SELECT DISTINCT
               s1.Student_Number AS StudentSelf,
@@ -113,8 +95,6 @@ WITH SiblingGroups AS
         ORDER BY StudentSelf )
 
       ORDER BY FamilyIdsInFamily NULLS FIRST,
-               MaxGradeLvl DESC,
-               MinGradeLvl DESC,
                StudentsInFamily )
   ), Siblings AS
   (SELECT
@@ -124,15 +104,8 @@ WITH SiblingGroups AS
       FamilyIdsInFamily,
       FamilyIdsInFamilyCount,
       FamilyIdsInFamilyDistinctCount,
-      StreetAddrsInFamily,
-      StreetAddrsInFamilyCnt,
-      StreetAddrsFamDistinctCnt,
-      MinGradeLvl,
-      MaxGradeLvl,
-      MinEnrollStat,
-      MaxEnrollStat,
       MinDOB,
-      MaxDOB,
+      MaxStuNum,
       REGEXP_SUBSTR(StudentsInFamily, chr(91)||'^,'||chr(93)||'+', 1, column_value) AS Stu_Num
       FROM SiblingGroups,
             TABLE (CAST (MULTISET (SELECT level FROM Dual
@@ -141,40 +114,51 @@ WITH SiblingGroups AS
   )
 
 SELECT
-  Stu_Num,
+  sibs1.Stu_Num,
   s.Grade_Level,
   s.Enroll_Status,
   s.DOB,
   scf.Family_Rep,
   s.Family_Ident,
-  StudentsInFamily,
-  TempFamGrpMemberCount,
-  FamilyIdsInFamily,
-  FamilyIdsInFamilyCount, 
-  FamilyIdsInFamilyDistinctCount,
-  StreetAddrsInFamily,
-  StreetAddrsInFamilyCnt,
-  StreetAddrsFamDistinctCnt,
-  MinGradeLvl, 
-  MaxGradeLvl,
-  MinEnrollStat, 
-  MaxEnrollStat,
-  MinDOB,
-  MaxDOB,
-  TempFamGrpNumber 
+  sibs1.StudentsInFamily,
+  sibs1.TempFamGrpMemberCount,
+  sibs2.FamilyMemberCnt,
+  sibs1.FamilyIdsInFamily,
+  sibs1.FamilyIdsInFamilyCount, 
+  sibs1.FamilyIdsInFamilyDistinctCount,
+  sibs1.MinDOB,
+  sibs1.TempFamGrpNumber,
+  CASE
+    WHEN sibs2.FamilyMemberCnt = 1 THEN 'Only Child'
+    WHEN sibs2.FamMemEnrolledCnt = 1 AND s.Enroll_Status = 0 THEN 'Only Enrolled'
+    WHEN (sibs2.FamMemPreregisteredCnt = 1 AND sibs2.FamMemEnrolledCnt = 0 AND s.Enroll_Status = -1) THEN 'Only Prereg none enrolled'
+    ELSE 'No Determ'
+  END AS FamRepCalc
   
-FROM Siblings
+FROM Siblings sibs1
+
+JOIN
+  ( SELECT 
+      TempFamGrpNumber,
+      COUNT(TempFamGrpNumber) AS FamilyMemberCnt,
+      COUNT(CASE WHEN Enroll_Status = -1 THEN 1 ELSE NULL END) AS FamMemPreregisteredCnt,
+      COUNT(CASE WHEN Enroll_Status = 0 THEN 1 ELSE NULL END) AS FamMemEnrolledCnt,
+      COUNT(CASE WHEN Enroll_Status > 0 THEN 1 ELSE NULL END) AS FamMemInactiveCnt,
+      MIN(DOB) AS YoungestSibling
+    FROM Siblings
+    JOIN Students
+      ON Stu_Num = Student_Number
+    GROUP BY TempFamGrpNumber
+  ) sibs2
+  ON sibs1.TempFamGrpNumber = sibs2.TempFamGrpNumber
 
 JOIN Students s 
-  ON Stu_Num = s.Student_Number
+  ON sibs1.Stu_Num = s.Student_Number
 
  JOIN StudentCoreFields scf
    ON s.Dcid = scf.StudentsDcid
 
 ORDER BY s.Family_Ident NULLS FIRST, 
-         MaxGradeLvl DESC,
-         MinGradeLvl DESC,
-         StudentsInFamily,
-         Stu_Num DESC
-
+         sibs1.StudentsInFamily,
+         sibs1.Stu_Num DESC
 
