@@ -2,7 +2,7 @@ WITH SiblingGroups AS
   (SELECT
       StudentsInFamily,
       FamilyIdsInFamily, 
-      ROWNUM AS RowIndex
+      ROWNUM AS TempFamGrpNumber
 
     FROM (SELECT DISTINCT *
 
@@ -84,12 +84,12 @@ WITH SiblingGroups AS
                StudentsInFamily )
   ), Siblings AS
   (SELECT
-      RowIndex AS TempFamGrpNumber,
+      REGEXP_SUBSTR(StudentsInFamily, chr(91)||'^,'||chr(93)||'+', 1, column_value) AS Stu_Num,
+      TempFamGrpNumber,
       StudentsInFamily,
-      FamilyIdsInFamily,
-      REGEXP_SUBSTR(StudentsInFamily, chr(91)||'^,'||chr(93)||'+', 1, column_value) AS Stu_Num
+      FamilyIdsInFamily
       FROM SiblingGroups,
-            TABLE (CAST (MULTISET (SELECT level FROM Dual
+           TABLE (CAST (MULTISET (SELECT level FROM Dual
                                    CONNECT BY level <= REGEXP_COUNT (StudentsInFamily, ',') + 1
                                   ) AS sys.odcinumberlist ) )
   )
