@@ -1,31 +1,18 @@
 WITH SiblingGroups AS
   (SELECT
       StudentsInFamily,
-      StudentsInFamilyCount,
       FamilyIdsInFamily, 
-      FamilyIdsInFamilyCount,
-      FamilyIdsInFamilyDistinctCount,
-      MinDOB, 
-      MaxStuNum,
       ROWNUM AS RowIndex
 
     FROM (SELECT DISTINCT *
 
       FROM (SELECT
           LISTAGG(StudentSibling, ',') WITHIN GROUP (ORDER BY StudentSibling) AS StudentsInFamily,
-          COUNT(StudentSibling) AS StudentsInFamilyCount,
-
-          LISTAGG(StudentSibling_FamId, ',') WITHIN GROUP (ORDER BY StudentSibling_FamId) AS FamilyIdsInFamily,
-          COUNT(StudentSibling_FamId) AS FamilyIdsInFamilyCount,
-          COUNT(DISTINCT StudentSibling_FamId) AS FamilyIdsInFamilyDistinctCount,
-          
-          MIN(SiblingDOB) AS MinDOB,
-          MAX(StudentSibling) AS MaxStuNum
+          LISTAGG(StudentSibling_FamId, ',') WITHIN GROUP (ORDER BY StudentSibling_FamId) AS FamilyIdsInFamily
 
         FROM (SELECT DISTINCT
             StudentSelf,
             StudentSibling,
-            ss.DOB AS SiblingDOB,
             ss.Family_Ident AS StudentSibling_FamId
 
           FROM (SELECT DISTINCT
@@ -86,8 +73,7 @@ WITH SiblingGroups AS
           JOIN Students ss
             ON StudentSibling = ss.Student_Number
 
-          GROUP BY StudentSelf, StudentSibling, ss.Grade_Level, 
-                   ss.Enroll_Status, ss.DOB, ss.Family_Ident, ss.Street
+          GROUP BY StudentSelf, StudentSibling, ss.Family_Ident
 
           ORDER BY StudentSelf, StudentSibling )
 
@@ -100,12 +86,7 @@ WITH SiblingGroups AS
   (SELECT
       RowIndex AS TempFamGrpNumber,
       StudentsInFamily,
-      StudentsInFamilyCount AS TempFamGrpMemberCount,
       FamilyIdsInFamily,
-      FamilyIdsInFamilyCount,
-      FamilyIdsInFamilyDistinctCount,
-      MinDOB,
-      MaxStuNum,
       REGEXP_SUBSTR(StudentsInFamily, chr(91)||'^,'||chr(93)||'+', 1, column_value) AS Stu_Num
       FROM SiblingGroups,
             TABLE (CAST (MULTISET (SELECT level FROM Dual
@@ -121,12 +102,8 @@ SELECT
   scf.Family_Rep,
   s.Family_Ident,
   sibs1.StudentsInFamily,
-  sibs1.TempFamGrpMemberCount,
   sibs2.FamilyMemberCnt,
   sibs1.FamilyIdsInFamily,
-  sibs1.FamilyIdsInFamilyCount, 
-  sibs1.FamilyIdsInFamilyDistinctCount,
-  sibs1.MinDOB,
   sibs1.TempFamGrpNumber,
   CASE
     WHEN sibs2.FamilyMemberCnt = 1 THEN 'Only Child'
@@ -141,6 +118,8 @@ JOIN
   ( SELECT 
       TempFamGrpNumber,
       COUNT(TempFamGrpNumber) AS FamilyMemberCnt,
+      COUNT(Family_Ident) AS FamilyIdentCnt,
+      COUNT(DISTINCT Family_Ident) AS FamilyIdentDistinctCnt,
       COUNT(CASE WHEN Enroll_Status = -1 THEN 1 ELSE NULL END) AS FamMemPreregisteredCnt,
       COUNT(CASE WHEN Enroll_Status = 0 THEN 1 ELSE NULL END) AS FamMemEnrolledCnt,
       COUNT(CASE WHEN Enroll_Status > 0 THEN 1 ELSE NULL END) AS FamMemInactiveCnt,
