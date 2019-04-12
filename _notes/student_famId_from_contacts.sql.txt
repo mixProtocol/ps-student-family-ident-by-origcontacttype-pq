@@ -92,6 +92,21 @@ WITH SiblingGroups AS
            TABLE (CAST (MULTISET (SELECT level FROM Dual
                                    CONNECT BY level <= REGEXP_COUNT (StudentsInFamily, ',') + 1
                                   ) AS sys.odcinumberlist ) )
+  ), YoungestSiblingByEnrollStat AS
+  (SELECT
+      DISTINCT *
+   FROM (SELECT
+        Student_Number,
+        TempFamGrpNumber,
+        DOB,
+        Enroll_Status,
+        ROW_NUMBER() OVER (PARTITION BY TempFamGrpNumber, Enroll_Status
+                           ORDER BY DOB DESC,
+                                    Student_Number DESC) AS rk
+      FROM Siblings
+      JOIN Students
+        ON Stu_Num = Student_Number )
+    WHERE rk = 1
   )
 
 SELECT
@@ -102,34 +117,23 @@ SELECT
   scf.Family_Rep,
   s.Family_Ident,
   sibs1.StudentsInFamily,
-  sibs2.FamilyMemberCnt,
   sibs1.FamilyIdsInFamily,
   sibs1.TempFamGrpNumber,
+  MAX(ysbes_enrolled.Student_Number),
+  MAX(ysbes_prereg.Student_Number),
+  MAX(ysbes_anystat.Student_Number),
+
   CASE
-    WHEN sibs2.FamilyMemberCnt = 1 THEN 'Only Child'
-    WHEN sibs2.FamMemEnrolledCnt = 1 AND s.Enroll_Status = 0 THEN 'Only Enrolled'
-    WHEN (sibs2.FamMemPreregisteredCnt = 1 AND sibs2.FamMemEnrolledCnt = 0 AND s.Enroll_Status = -1) THEN 'Only Prereg none enrolled'
-    ELSE 'No Determ'
-  END AS FamRepCalc
+    WHEN MAX(ysbes_enrolled.Student_Number) = sibs1.Stu_Num THEN 1
+    WHEN (MAX(ysbes_enrolled.Student_Number) IS NULL
+          AND MAX(ysbes_prereg.Student_Number) = sibs1.Stu_Num) THEN 1
+    WHEN (MAX(ysbes_enrolled.Student_Number) IS NULL
+          AND MAX(ysbes_prereg.Student_Number) IS NULL
+          AND MAX(ysbes_anystat.Student_Number) = sibs1.Stu_Num) THEN 1
+    ELSE 0
+  END AS Family_Representative
   
 FROM Siblings sibs1
-
-JOIN
-  ( SELECT 
-      TempFamGrpNumber,
-      COUNT(TempFamGrpNumber) AS FamilyMemberCnt,
-      COUNT(Family_Ident) AS FamilyIdentCnt,
-      COUNT(DISTINCT Family_Ident) AS FamilyIdentDistinctCnt,
-      COUNT(CASE WHEN Enroll_Status = -1 THEN 1 ELSE NULL END) AS FamMemPreregisteredCnt,
-      COUNT(CASE WHEN Enroll_Status = 0 THEN 1 ELSE NULL END) AS FamMemEnrolledCnt,
-      COUNT(CASE WHEN Enroll_Status > 0 THEN 1 ELSE NULL END) AS FamMemInactiveCnt,
-      MIN(DOB) AS YoungestSibling
-    FROM Siblings
-    JOIN Students
-      ON Stu_Num = Student_Number
-    GROUP BY TempFamGrpNumber
-  ) sibs2
-  ON sibs1.TempFamGrpNumber = sibs2.TempFamGrpNumber
 
 JOIN Students s 
   ON sibs1.Stu_Num = s.Student_Number
@@ -137,7 +141,29 @@ JOIN Students s
  JOIN StudentCoreFields scf
    ON s.Dcid = scf.StudentsDcid
 
+LEFT OUTER JOIN YoungestSiblingByEnrollStat ysbes_enrolled
+             ON sibs1.TempFamGrpNumber = ysbes_enrolled.TempFamGrpNumber
+                AND ysbes_enrolled.Enroll_Status = 0
+
+LEFT OUTER JOIN YoungestSiblingByEnrollStat ysbes_prereg
+             ON sibs1.TempFamGrpNumber = ysbes_prereg.TempFamGrpNumber
+                AND ysbes_prereg.Enroll_Status = -1
+
+LEFT OUTER JOIN YoungestSiblingByEnrollStat ysbes_anystat
+             ON sibs1.TempFamGrpNumber = ysbes_anystat.TempFamGrpNumber
+
+GROUP BY sibs1.Stu_Num,
+         s.Grade_Level,
+         s.Enroll_Status,
+         s.DOB,
+         scf.Family_Rep,
+         s.Family_Ident,
+         sibs1.StudentsInFamily,
+         sibs1.FamilyIdsInFamily,
+         sibs1.TempFamGrpNumber
+
 ORDER BY s.Family_Ident NULLS FIRST, 
+         sibs1.TempFamGrpNumber,
          sibs1.StudentsInFamily,
          sibs1.Stu_Num DESC
 
