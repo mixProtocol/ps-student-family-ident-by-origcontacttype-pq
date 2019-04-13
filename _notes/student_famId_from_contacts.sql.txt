@@ -74,7 +74,6 @@ WITH SiblingGroups AS
             ON StudentSibling = ss.Student_Number
 
           GROUP BY StudentSelf, StudentSibling, ss.Family_Ident
-
           ORDER BY StudentSelf, StudentSibling )
 
         GROUP BY StudentSelf
@@ -117,7 +116,10 @@ SELECT
   scf.Family_Rep,
   s.Family_Ident,
   sibs1.StudentsInFamily,
+  fam_grp_stats.FamilyMemberCnt,
   sibs1.FamilyIdsInFamily,
+  fam_grp_stats.FamilyIdentCnt,
+  fam_grp_stats.FamilyIdentDistinctCnt,
   sibs1.TempFamGrpNumber,
   MAX(ysbes_enrolled.Student_Number),
   MAX(ysbes_prereg.Student_Number),
@@ -131,7 +133,17 @@ SELECT
           AND MAX(ysbes_prereg.Student_Number) IS NULL
           AND MAX(ysbes_anystat.Student_Number) = sibs1.Stu_Num) THEN 1
     ELSE 0
-  END AS Family_Representative
+  END AS Family_Representative,
+  
+  CASE
+    WHEN fam_grp_stats.FamilyIdentDistinctCnt = 0 THEN 'ACT - No Existing FamId - Set Calcd'
+    WHEN fam_grp_stats.FamilyIdentDistinctCnt > 1 THEN 'NOACT - More Than 1 Existing FamId'
+    WHEN (fam_grp_stats.FamilyMemberCnt = fam_grp_stats.FamilyIdentCnt
+          AND fam_grp_stats.FamilyIdentDistinctCnt = 1) THEN 'NOACT - All Have Same FamId'
+    WHEN (fam_grp_stats.FamilyMemberCnt > fam_grp_stats.FamilyIdentCnt
+          AND fam_grp_stats.FamilyIdentDistinctCnt = 1
+          AND s.Family_Ident IS NULL) THEN 'ACT - Add Existing FamID To Student'
+  END AS FamIdAction
   
 FROM Siblings sibs1
 
@@ -151,6 +163,21 @@ LEFT OUTER JOIN YoungestSiblingByEnrollStat ysbes_prereg
 
 LEFT OUTER JOIN YoungestSiblingByEnrollStat ysbes_anystat
              ON sibs1.TempFamGrpNumber = ysbes_anystat.TempFamGrpNumber
+JOIN
+  ( SELECT 
+      TempFamGrpNumber,
+      COUNT(TempFamGrpNumber) AS FamilyMemberCnt,
+      COUNT(Family_Ident) AS FamilyIdentCnt,
+      COUNT(DISTINCT Family_Ident) AS FamilyIdentDistinctCnt
+    
+    FROM Siblings
+    
+    JOIN Students
+      ON Stu_Num = Student_Number
+    
+    GROUP BY TempFamGrpNumber
+  ) fam_grp_stats
+  ON sibs1.TempFamGrpNumber = fam_grp_stats.TempFamGrpNumber
 
 GROUP BY sibs1.Stu_Num,
          s.Grade_Level,
@@ -159,7 +186,10 @@ GROUP BY sibs1.Stu_Num,
          scf.Family_Rep,
          s.Family_Ident,
          sibs1.StudentsInFamily,
+         fam_grp_stats.FamilyMemberCnt,
          sibs1.FamilyIdsInFamily,
+         fam_grp_stats.FamilyIdentCnt,
+         fam_grp_stats.FamilyIdentDistinctCnt,
          sibs1.TempFamGrpNumber
 
 ORDER BY s.Family_Ident NULLS FIRST, 
