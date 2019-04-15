@@ -137,12 +137,15 @@ SELECT
   
   CASE
     WHEN fam_grp_stats.FamilyIdentDistinctCnt = 0 THEN 'ACT - No Existing FamId - Set Calcd'
-    WHEN fam_grp_stats.FamilyIdentDistinctCnt > 1 THEN 'NOACT - More Than 1 Existing FamId'
+    WHEN fam_grp_stats.FamilyIdentDistinctCnt > 1 THEN 'MANUAL - More Than 1 Existing FamId'
     WHEN (fam_grp_stats.FamilyMemberCnt = fam_grp_stats.FamilyIdentCnt
           AND fam_grp_stats.FamilyIdentDistinctCnt = 1) THEN 'NOACT - All Have Same FamId'
     WHEN (fam_grp_stats.FamilyMemberCnt > fam_grp_stats.FamilyIdentCnt
           AND fam_grp_stats.FamilyIdentDistinctCnt = 1
-          AND s.Family_Ident IS NULL) THEN 'ACT - Add Existing FamID To Student'
+          AND (s.Family_Ident IS NULL OR TO_CHAR(s.Family_Ident) = ''))THEN 'ACT - Add Existing FamID To Student'
+    WHEN (fam_grp_stats.FamilyMemberCnt > fam_grp_stats.FamilyIdentCnt
+          AND fam_grp_stats.FamilyIdentDistinctCnt = 1
+          AND s.Family_Ident IS NOT NULL) THEN 'NOACT - Existing FamID Will Be Applied to Other FamMembers'
   END AS FamIdAction
   
 FROM Siblings sibs1
