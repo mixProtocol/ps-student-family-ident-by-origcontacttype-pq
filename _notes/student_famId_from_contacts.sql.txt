@@ -208,6 +208,7 @@ CROSS JOIN
       END AS MaxVal
       
     FROM Students 
+    WHERE REGEXP_LIKE(stdnt.Family_Ident, '^' || CHR(91) || '0-9' || CHR(93) || '+')
   ) stu_fam_ids
 
 GROUP BY sibs1.Stu_Num,
