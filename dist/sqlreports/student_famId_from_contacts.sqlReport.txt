@@ -236,7 +236,7 @@ ORDER BY s.Family_Ident NULLS FIRST,
          sibs1.Stu_Num DESC
 
 </textarea></SQLQuery>
-<ReportHeader><th>Student_Number</th><th>Grd_Lvl</th><th>Enroll_Stat</th><th class="NOCF">stu_DOB</th><th>FamRep</th><th>FamId</th><th class="NOCF">StdntsInFam</th><th>FamMbrCnt</th><th class="NOCF">FamIdsInFam</th><th>FamIdCnt</th><th>FamIdDstnctCnt</th><th>FamGrpNum</th><th class="NOCF">ye_stdnt</th><th class="NOCF">yp_stdnt</th><th class="NOCF">y_stndt</th><th>Family_Rep</th><th>MaxGlobalStuId</th><th>CalcdFamId</th><th>FamIdAction</th><th>Family_IdentForImport</th></ReportHeader>
+<ReportHeader><th>Student_Number</th><th>Grd_Lvl</th><th>Enroll_Stat</th><th class="NOCF">stu_DOB</th><th>FamRep</th><th>FamId</th><th class="NOCF">StdntsInFam</th><th>FamMbrCnt</th><th class="NOCF">FamIdsInFam</th><th>FamIdCnt</th><th>FamIdDstnctCnt</th><th>FamGrpNum</th><th class="NOCF">ye_stdnt</th><th class="NOCF">yp_stdnt</th><th class="NOCF">y_stndt</th><th>Family_Rep</th><th class="HIDE">MaxGlobalStuId</th><th class="HIDE">CalcdFamId</th><th>FamIdAction</th><th>Family_IdentForImport</th></ReportHeader>
 <CreateStudentSelection>0</CreateStudentSelection>
 <StudentSelectionQuery></StudentSelectionQuery>
 <CreateStudentSelectionB></CreateStudentSelectionB>
