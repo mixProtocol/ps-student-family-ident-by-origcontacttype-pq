@@ -110,21 +110,21 @@ WITH SiblingGroups AS
   )
 
 SELECT
-  sibs1.Stu_Num,
-  s.Grade_Level,
-  s.Enroll_Status,
-  s.DOB,
-  scf.Family_Rep,
-  s.Family_Ident,
+  sibs1.Stu_Num AS Student_Number,
+  s.Grade_Level AS stu_Grade_Level,
+  s.Enroll_Status AS stu_Enroll_Status,
+  s.DOB AS stu_DOB,
+  scf.Family_Rep AS stu_Family_Rep,
+  s.Family_Ident AS stu_Family_Ident,
   sibs1.StudentsInFamily,
   fam_grp_stats.FamilyMemberCnt,
   sibs1.FamilyIdsInFamily,
   fam_grp_stats.FamilyIdentCnt,
   fam_grp_stats.FamilyIdentDistinctCnt,
   sibs1.TempFamGrpNumber,
-  MAX(ysbes_enrolled.Student_Number),
-  MAX(ysbes_prereg.Student_Number),
-  MAX(ysbes_anystat.Student_Number),
+  MAX(ysbes_enrolled.Student_Number) AS YoungestEnrolledStuNumInFam,
+  MAX(ysbes_prereg.Student_Number) AS YoungestPreregStuNumInFam,
+  MAX(ysbes_anystat.Student_Number) AS YoungestStuNumInFam,
 
   CASE
     WHEN MAX(ysbes_enrolled.Student_Number) = sibs1.Stu_Num THEN 1
@@ -208,7 +208,7 @@ CROSS JOIN
       END AS MaxVal
       
     FROM Students 
-    WHERE REGEXP_LIKE(stdnt.Family_Ident, '^' || CHR(91) || '0-9' || CHR(93) || '+')
+    WHERE REGEXP_LIKE(Family_Ident, '^' || CHR(91) || '0-9' || CHR(93) || '+')
   ) stu_fam_ids
 
 GROUP BY sibs1.Stu_Num,
