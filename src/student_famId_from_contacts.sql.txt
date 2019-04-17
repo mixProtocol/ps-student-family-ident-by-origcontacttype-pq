@@ -1,0 +1,232 @@
+WITH SiblingGroups AS
+  (SELECT
+      StudentsInFamily,
+      FamilyIdsInFamily, 
+      ROWNUM AS TempFamGrpNumber
+
+    FROM (SELECT DISTINCT *
+
+      FROM (SELECT
+          LISTAGG(StudentSibling, ',') WITHIN GROUP (ORDER BY StudentSibling) AS StudentsInFamily,
+          LISTAGG(StudentSibling_FamId, ',') WITHIN GROUP (ORDER BY StudentSibling_FamId) AS FamilyIdsInFamily
+
+        FROM (SELECT DISTINCT
+            StudentSelf,
+            StudentSibling,
+            ss.Family_Ident AS StudentSibling_FamId
+
+          FROM (SELECT DISTINCT
+              s1.Student_Number AS StudentSelf,
+              s1.Student_Number AS Sibling1_SN,
+              s2.Student_Number AS Sibling2_SN,
+              s3.Student_Number AS Sibling3_SN
+
+            FROM Students s1
+
+            JOIN StudentContactAssoc scaS1P1
+              ON s1.Dcid = scaS1P1.StudentDcid
+
+            JOIN OriginalContactMap ocmS1P1
+              ON scaS1P1.StudentContactAssocid = ocmS1P1.StudentContactAssocId
+                AND LOWER(ocmS1P1.OriginalContactType) IN ('mother', 'father', 'guardian')
+
+            JOIN Person p1
+              ON scaS1P1.PersonId = p1.Id
+
+            JOIN StudentContactAssoc scaP1S2
+              ON p1.Id = scaP1S2.PersonId
+
+            JOIN OriginalContactMap ocmP1S2
+              ON scaP1S2.StudentContactAssocid = ocmP1S2.StudentContactAssocId
+              AND LOWER(ocmP1S2.OriginalContactType) IN ('mother', 'father', 'guardian')
+
+            JOIN Students s2
+              ON scaP1S2.StudentDcid = s2.Dcid
+
+            JOIN StudentContactAssoc scaS2P2
+              ON s2.Dcid = scaS2P2.StudentDcid
+
+            JOIN OriginalContactMap ocmS2P2
+              ON scaS2P2.StudentContactAssocid = ocmS2P2.StudentContactAssocId
+                AND LOWER(ocmS2P2.OriginalContactType) IN ('mother', 'father', 'guardian')
+
+            JOIN Person p2
+              ON scaS2P2.PersonId = p2.Id
+
+            JOIN StudentContactAssoc scaP2S3
+              ON p2.Id = scaP2S3.PersonId
+
+            JOIN OriginalContactMap ocmP2S3
+              ON scaP2S3.StudentContactAssocid = ocmP2S3.StudentContactAssocId
+                AND LOWER(ocmP2S3.OriginalContactType) IN ('mother', 'father', 'guardian')
+
+            JOIN Students s3
+              ON scaP2S3.StudentDcid = s3.Dcid
+          )
+          UNPIVOT ( StudentSibling FOR (SOURCE_S) IN
+            ( Sibling1_SN AS 'S1',
+              Sibling2_SN AS 'S2',
+              Sibling3_SN AS 'S3'
+            )
+          )
+
+          JOIN Students ss
+            ON StudentSibling = ss.Student_Number
+
+          GROUP BY StudentSelf, StudentSibling, ss.Family_Ident
+          ORDER BY StudentSelf, StudentSibling
+         )
+
+        GROUP BY StudentSelf
+        ORDER BY StudentSelf )
+
+      ORDER BY FamilyIdsInFamily NULLS FIRST,
+               StudentsInFamily )
+  ), Siblings AS
+  (SELECT
+      REGEXP_SUBSTR(StudentsInFamily, chr(91)||'^,'||chr(93)||'+', 1, column_value) AS Stu_Num,
+      TempFamGrpNumber,
+      StudentsInFamily,
+      FamilyIdsInFamily
+      FROM SiblingGroups,
+           TABLE (CAST (MULTISET (SELECT level FROM Dual
+                                   CONNECT BY level <= REGEXP_COUNT (StudentsInFamily, ',') + 1
+                                  ) AS sys.odcinumberlist ) )
+  ), YoungestSiblingByEnrollStat AS
+  (SELECT
+      DISTINCT *
+   FROM (SELECT
+        Student_Number,
+        TempFamGrpNumber,
+        DOB,
+        Enroll_Status,
+        ROW_NUMBER() OVER (PARTITION BY TempFamGrpNumber, Enroll_Status
+                           ORDER BY DOB DESC,
+                                    Student_Number DESC) AS rk
+      FROM Siblings
+      JOIN Students
+        ON Stu_Num = Student_Number )
+    WHERE rk = 1
+  )
+
+SELECT
+  sibs1.Stu_Num AS Student_Number,
+  s.Grade_Level AS Grd_Lvl,
+  s.Enroll_Status AS Enroll_Stat,
+  TO_CHAR(s.DOB, 'MM/DD/YYYY') AS stu_DOB,
+  scf.Family_Rep AS FamRep,
+  s.Family_Ident AS FamId,
+  sibs1.StudentsInFamily AS StdntsInFam,
+  fam_grp_stats.FamilyMemberCnt AS FamMbrCnt,
+  sibs1.FamilyIdsInFamily AS FamIdsInFam,
+  fam_grp_stats.FamilyIdentCnt AS FamIdCnt,
+  fam_grp_stats.FamilyIdentDistinctCnt AS FamIdDstnctCnt,
+  sibs1.TempFamGrpNumber AS FamGrpNum,
+  MAX(ysbes_enrolled.Student_Number) AS YoungestEnrolledStuNumInFam,
+  MAX(ysbes_prereg.Student_Number) AS YoungestPreregStuNumInFam,
+  MAX(ysbes_anystat.Student_Number) AS YoungestStuNumInFam,
+
+  CASE
+    WHEN MAX(ysbes_enrolled.Student_Number) = sibs1.Stu_Num THEN 1
+    WHEN (MAX(ysbes_enrolled.Student_Number) IS NULL
+          AND MAX(ysbes_prereg.Student_Number) = sibs1.Stu_Num) THEN 1
+    WHEN (MAX(ysbes_enrolled.Student_Number) IS NULL
+          AND MAX(ysbes_prereg.Student_Number) IS NULL
+          AND MAX(ysbes_anystat.Student_Number) = sibs1.Stu_Num) THEN 1
+    ELSE 0
+  END AS Family_Rep,
+
+  MAX(stu_fam_ids.MaxVal) AS MaxGlobalStuId,
+  MAX(stu_fam_ids.MaxVal + sibs1.TempFamGrpNumber) AS CalcdFamId,
+  
+  CASE
+    WHEN fam_grp_stats.FamilyIdentDistinctCnt = 0 THEN 'ACT - No Existing FamId - Set Calcd'
+    WHEN fam_grp_stats.FamilyIdentDistinctCnt > 1 THEN 'MANUAL - More Than 1 Existing FamId'
+    WHEN (fam_grp_stats.FamilyMemberCnt = fam_grp_stats.FamilyIdentCnt
+          AND fam_grp_stats.FamilyIdentDistinctCnt = 1) THEN 'NOACT - All Have Same FamId'
+    WHEN (fam_grp_stats.FamilyMemberCnt > fam_grp_stats.FamilyIdentCnt
+          AND fam_grp_stats.FamilyIdentDistinctCnt = 1
+          AND (s.Family_Ident IS NULL OR TO_CHAR(s.Family_Ident) = ''))
+          THEN 'ACT - Add Existing FamID To Student'
+    WHEN (fam_grp_stats.FamilyMemberCnt > fam_grp_stats.FamilyIdentCnt
+          AND fam_grp_stats.FamilyIdentDistinctCnt = 1
+          AND s.Family_Ident IS NOT NULL) THEN 'NOACT - Existing FamID Will Be Applied to Other FamMembers'
+  END AS FamIdAction, 
+
+  CASE
+    WHEN fam_grp_stats.FamilyIdentDistinctCnt = 0 THEN TO_CHAR(MAX(stu_fam_ids.MaxVal + sibs1.TempFamGrpNumber))
+    WHEN fam_grp_stats.FamilyIdentDistinctCnt > 1 THEN TO_CHAR(s.Family_Ident)
+    WHEN (fam_grp_stats.FamilyMemberCnt = fam_grp_stats.FamilyIdentCnt
+          AND fam_grp_stats.FamilyIdentDistinctCnt = 1) THEN TO_CHAR(s.Family_Ident) 
+    WHEN (fam_grp_stats.FamilyMemberCnt > fam_grp_stats.FamilyIdentCnt
+          AND fam_grp_stats.FamilyIdentDistinctCnt = 1
+          AND (s.Family_Ident IS NULL OR TO_CHAR(s.Family_Ident) = ''))
+          THEN TO_CHAR(regexp_substr(TO_CHAR(sibs1.FamilyIdsInFamily), chr(91)||'^,'||chr(93)||'+', 1, 1))
+    WHEN (fam_grp_stats.FamilyMemberCnt > fam_grp_stats.FamilyIdentCnt
+          AND fam_grp_stats.FamilyIdentDistinctCnt = 1
+          AND s.Family_Ident IS NOT NULL) THEN TO_CHAR(s.Family_Ident)
+  END AS Family_IdentForImport
+
+FROM Siblings sibs1
+
+JOIN Students s 
+  ON sibs1.Stu_Num = s.Student_Number
+
+ JOIN StudentCoreFields scf
+   ON s.Dcid = scf.StudentsDcid
+
+LEFT OUTER JOIN YoungestSiblingByEnrollStat ysbes_enrolled
+             ON sibs1.TempFamGrpNumber = ysbes_enrolled.TempFamGrpNumber
+                AND ysbes_enrolled.Enroll_Status = 0
+
+LEFT OUTER JOIN YoungestSiblingByEnrollStat ysbes_prereg
+             ON sibs1.TempFamGrpNumber = ysbes_prereg.TempFamGrpNumber
+                AND ysbes_prereg.Enroll_Status = -1
+
+LEFT OUTER JOIN YoungestSiblingByEnrollStat ysbes_anystat
+             ON sibs1.TempFamGrpNumber = ysbes_anystat.TempFamGrpNumber
+JOIN
+  ( SELECT 
+      TempFamGrpNumber,
+      COUNT(TempFamGrpNumber) AS FamilyMemberCnt,
+      COUNT(Family_Ident) AS FamilyIdentCnt,
+      COUNT(DISTINCT Family_Ident) AS FamilyIdentDistinctCnt
+    
+    FROM Siblings
+    
+    JOIN Students
+      ON Stu_Num = Student_Number
+    
+    GROUP BY TempFamGrpNumber
+  ) fam_grp_stats
+  ON sibs1.TempFamGrpNumber = fam_grp_stats.TempFamGrpNumber
+
+CROSS JOIN
+  ( SELECT
+      CASE
+        WHEN COUNT(Family_Ident) = 0 THEN 10000
+        ELSE MAX(TO_NUMBER(Family_Ident))
+      END AS MaxVal
+      
+    FROM Students 
+    WHERE REGEXP_LIKE(Family_Ident, '^' || CHR(91) || '0-9' || CHR(93) || '+')
+  ) stu_fam_ids
+
+GROUP BY sibs1.Stu_Num,
+         s.Grade_Level,
+         s.Enroll_Status,
+         s.DOB,
+         scf.Family_Rep,
+         s.Family_Ident,
+         sibs1.StudentsInFamily,
+         fam_grp_stats.FamilyMemberCnt,
+         sibs1.FamilyIdsInFamily,
+         fam_grp_stats.FamilyIdentCnt,
+         fam_grp_stats.FamilyIdentDistinctCnt,
+         sibs1.TempFamGrpNumber
+
+ORDER BY s.Family_Ident NULLS FIRST, 
+         sibs1.TempFamGrpNumber,
+         sibs1.StudentsInFamily,
+         sibs1.Stu_Num DESC
+
