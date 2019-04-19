@@ -121,6 +121,7 @@ SELECT
   sibs1.FamilyIdsInFamily AS FamIdsInFam,
   fam_grp_stats.FamilyIdentCnt AS FamIdCnt,
   fam_grp_stats.FamilyIdentDistinctCnt AS FamIdDstnctCnt,
+  fam_grp_stats.StreetAddrDistinctCnt AS StreetDstnctCnt,
   sibs1.TempFamGrpNumber AS FamGrpNum,
   MAX(ysbes_enrolled.Student_Number) AS YoungestEnrolledStuNumInFam,
   MAX(ysbes_prereg.Student_Number) AS YoungestPreregStuNumInFam,
@@ -190,7 +191,8 @@ JOIN
       TempFamGrpNumber,
       COUNT(TempFamGrpNumber) AS FamilyMemberCnt,
       COUNT(Family_Ident) AS FamilyIdentCnt,
-      COUNT(DISTINCT Family_Ident) AS FamilyIdentDistinctCnt
+      COUNT(DISTINCT Family_Ident) AS FamilyIdentDistinctCnt,
+      COUNT(DISTINCT Street) AS StreetAddrDistinctCnt
     
     FROM Siblings
     
@@ -223,6 +225,7 @@ GROUP BY sibs1.Stu_Num,
          sibs1.FamilyIdsInFamily,
          fam_grp_stats.FamilyIdentCnt,
          fam_grp_stats.FamilyIdentDistinctCnt,
+         fam_grp_stats.StreetAddrDistinctCnt,
          sibs1.TempFamGrpNumber
 
 ORDER BY s.Family_Ident NULLS FIRST, 
